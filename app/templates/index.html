@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="jumbotron bg-light p-5 rounded">
+            <h1 class="display-4">Welcome to Personal Expense Tracker</h1>
+            <p class="lead">Take control of your finances with our simple and intuitive expense tracking system.</p>
+            <hr class="my-4">
+            <p>Track your daily expenses, set budgets, monitor spending, and generate detailed financial reports.</p>
+            
+            {% if not current_user.is_authenticated %}
+            <div class="mt-4">
+                <a class="btn btn-primary btn-lg me-3" href="{{ url_for('auth.register') }}" role="button">
+                    Get Started
+                </a>
+                <a class="btn btn-outline-primary btn-lg" href="{{ url_for('auth.login') }}" role="button">
+                    Sign In
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Features Section -->
+        <div class="row mt-5">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h2>📊</h2>
+                        <h5 class="card-title">Track Expenses</h5>
+                        <p class="card-text">Easily add and categorize your daily expenses with our intuitive interface.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h2>💰</h2>
+                        <h5 class="card-title">Budget Management</h5>
+                        <p class="card-text">Set monthly budgets and monitor your spending to stay on track.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h2>📈</h2>
+                        <h5 class="card-title">Financial Reports</h5>
+                        <p class="card-text">Generate detailed reports and visualizations of your spending patterns.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
