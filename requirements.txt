@@ -4,3 +4,7 @@ flask-sqlalchemy
 flask_migrate
 python-dotenv
 pymysql
+Flask-JWT-Extended
+flask-smorest
+flask-bcrypt
+cryptography
