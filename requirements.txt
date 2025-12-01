@@ -1,0 +1,12 @@
+flask
+sqlalchemy
+flask-sqlalchemy
+flask_migrate
+python-dotenv
+pymysql
+Flask-JWT-Extended
+flask-smorest
+cryptography
+flask-cors
+pyinstaller
+waitress

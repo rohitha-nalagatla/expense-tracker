@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-home"></i> Dashboard</h2>
+        
+        <!-- Month/Year Filter -->
+        <div class="d-flex gap-2">
+            <select id="dashboardMonth" class="form-select" style="width: 150px;" onchange="loadDashboard()">
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+            </select>
+            <input type="number" id="dashboardYear" class="form-control" style="width: 100px;" min="2020" onchange="loadDashboard()">
+            <button class="btn btn-primary" onclick="setCurrentMonthYear()">
+                <i class="fas fa-calendar-day"></i> Current
+            </button>
+        </div>
+    </div>
+    
+    <!-- Budget Alerts -->
+    <div id="budgetAlerts" class="mb-4"></div>
+    
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-arrow-down"></i> Income</h5>
+                    <h3 id="monthIncome">$0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-arrow-up"></i> Expenses</h5>
+                    <h3 id="monthExpenses">$0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-wallet"></i> Net Balance</h5>
+                    <h3 id="monthBalance">$0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-chart-line"></i> Total Balance</h5>
+                    <h3 id="totalBalance">$0.00</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Expenses by Category</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="expensePieChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Income by Category</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="incomePieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Transactions -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-money-bill-wave"></i> Recent Expenses</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentExpenses"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-dollar-sign"></i> Recent Income</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentIncome"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let expensePieChart, incomePieChart;
+
+function setCurrentMonthYear() {
+    const now = new Date();
+    document.getElementById('dashboardMonth').value = now.getMonth() + 1;
+    document.getElementById('dashboardYear').value = now.getFullYear();
+    loadDashboard();
+}
+
+async function loadDashboard() {
+    const month = parseInt(document.getElementById('dashboardMonth').value);
+    const year = parseInt(document.getElementById('dashboardYear').value);
+    
+    await loadSummary(month, year);
+    await loadBudgetAlerts(month, year);
+    await loadExpensesByCategory(month, year);
+    await loadIncomeByCategory(month, year);
+}
+
+async function loadSummary(month, year) {
+    const response = await apiRequest(`${API_URL}/api/analytics/dashboard-summary`);
+    if (!response) return;
+    
+    const data = await response.json();
+    
+    // Filter data for selected month/year
+    const monthData = {
+        total_income: 0,
+        total_expenses: 0,
+        net_balance: 0
+    };
+    
+    // Calculate monthly totals from recent data filtered by month/year
+    data.recent_expenses.forEach(exp => {
+        const expDate = new Date(exp.date);
+        if (expDate.getMonth() + 1 === month && expDate.getFullYear() === year) {
+            monthData.total_expenses += exp.amount;
+        }
+    });
+    
+    data.recent_income.forEach(inc => {
+        const incDate = new Date(inc.date);
+        if (incDate.getMonth() + 1 === month && incDate.getFullYear() === year) {
+            monthData.total_income += inc.amount;
+        }
+    });
+    
+    monthData.net_balance = monthData.total_income - monthData.total_expenses;
+    
+    document.getElementById('monthIncome').textContent = `₹${monthData.total_income.toFixed(2)}`;
+    document.getElementById('monthExpenses').textContent = `₹${monthData.total_expenses.toFixed(2)}`;
+    document.getElementById('monthBalance').textContent = `₹${monthData.net_balance.toFixed(2)}`;
+    document.getElementById('totalBalance').textContent = `₹${data.all_time.net_balance.toFixed(2)}`;
+    
+    // Recent expenses (filter by month/year)
+    const filteredExpenses = data.recent_expenses.filter(exp => {
+        const expDate = new Date(exp.date);
+        return expDate.getMonth() + 1 === month && expDate.getFullYear() === year;
+    });
+    
+    const expensesHTML = filteredExpenses.map(exp => `
+        <tr>
+            <td>${exp.date}</td>
+            <td>${exp.category_name}</td>
+            <td>${exp.description || '-'}</td>
+            <td>₹${exp.amount.toFixed(2)}</td>
+        </tr>
+    `).join('');
+    document.getElementById('recentExpenses').innerHTML = expensesHTML || '<tr><td colspan="4" class="text-center">No expenses yet</td></tr>';
+    
+    // Recent income (filter by month/year)
+    const filteredIncome = data.recent_income.filter(inc => {
+        const incDate = new Date(inc.date);
+        return incDate.getMonth() + 1 === month && incDate.getFullYear() === year;
+    });
+    
+    const incomeHTML = filteredIncome.map(inc => `
+        <tr>
+            <td>${inc.date}</td>
+            <td>${inc.category_name}</td>
+            <td>${inc.description || '-'}</td>
+            <td>₹${inc.amount.toFixed(2)}</td>
+        </tr>
+    `).join('');
+    document.getElementById('recentIncome').innerHTML = incomeHTML || '<tr><td colspan="4" class="text-center">No income yet</td></tr>';
+}
+
+async function loadBudgetAlerts(month, year) {
+    const response = await apiRequest(`${API_URL}/api/budgets/alerts?month=${month}&year=${year}`);
+    if (!response) return;
+    
+    const data = await response.json();
+    const alertsContainer = document.getElementById('budgetAlerts');
+    
+    if (data.alerts.length > 0) {
+        const alertsHTML = data.alerts.map(alert => `
+            <div class="alert alert-${alert.alert_level === 'critical' ? 'danger' : 'warning'} alert-dismissible fade show" role="alert">
+                <strong><i class="fas fa-exclamation-triangle"></i> Budget Alert!</strong>
+                You've exceeded your budget for <strong>${alert.category_name}</strong> by ₹${alert.over_budget.toFixed(2)} (${alert.percentage_over.toFixed(1)}%)
+                <br>Budget: ₹${alert.budget_amount.toFixed(2)} | Spent: ₹${alert.actual_spent.toFixed(2)}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `).join('');
+        alertsContainer.innerHTML = alertsHTML;
+    }
+}
+
+async function loadExpensesByCategory(month, year) {
+    const response = await apiRequest(`${API_URL}/api/analytics/expenses-by-category?month=${month}&year=${year}`);
+    if (!response) return;
+    
+    const data = await response.json();
+    
+    const ctx = document.getElementById('expensePieChart').getContext('2d');
+    if (expensePieChart) expensePieChart.destroy();
+    
+    if (data.data.length > 0) {
+        expensePieChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: data.data.map(d => d.category_name),
+                datasets: [{
+                    data: data.data.map(d => d.total_amount),
+                    backgroundColor: [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    } else {
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No expense data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
+    }
+}
+
+async function loadIncomeByCategory(month, year) {
+    const response = await apiRequest(`${API_URL}/api/analytics/income-by-category?month=${month}&year=${year}`);
+    if (!response) return;
+    
+    const data = await response.json();
+    
+    const ctx = document.getElementById('incomePieChart').getContext('2d');
+    if (incomePieChart) incomePieChart.destroy();
+    
+    if (data.data.length > 0) {
+        incomePieChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: data.data.map(d => d.category_name),
+                datasets: [{
+                    data: data.data.map(d => d.total_amount),
+                    backgroundColor: [
+                        '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
+                        '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384', '#36A2EB'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+    } else {
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No income data available', ctx.canvas.width / 2, ctx.canvas.height / 2);
+    }
+}
+
+// Load dashboard on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set current month/year
+    const now = new Date();
+    document.getElementById('dashboardMonth').value = now.getMonth() + 1;
+    document.getElementById('dashboardYear').value = now.getFullYear();
+    
+    loadDashboard();
+});
+</script>
+{% endblock %}

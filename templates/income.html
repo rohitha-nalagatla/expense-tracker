@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Income - Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-dollar-sign"></i> Income</h2>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addIncomeModal">
+            <i class="fas fa-plus"></i> Add Income
+        </button>
+    </div>
+    
+    <!-- Filter Section -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <label>Category</label>
+                    <select id="filterCategory" class="form-select">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label>Start Date</label>
+                    <input type="date" id="filterStartDate" class="form-control" onchange="updateEndDateMin()">
+                </div>
+                <div class="col-md-2">
+                    <label>End Date</label>
+                    <input type="date" id="filterEndDate" class="form-control" onchange="updateStartDateMax()">
+                </div>
+                <div class="col-md-2">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-success w-100" onclick="loadIncome()">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-secondary w-100" onclick="clearIncomeFilters()">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Income Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="incomeTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addIncomeModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Income</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addIncomeForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label>Category *</label>
+                        <select id="incomeCategory" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Amount *</label>
+                        <input type="number" id="incomeAmount" class="form-control" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Date *</label>
+                        <input type="date" id="incomeDate" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Description</label>
+                        <textarea id="incomeDescription" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Income Modal -->
+<div class="modal fade" id="editIncomeModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Income</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editIncomeForm">
+                <div class="modal-body">
+                    <input type="hidden" id="editIncomeId">
+                    <div class="mb-3">
+                        <label>Category *</label>
+                        <select id="editIncomeCategory" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Amount *</label>
+                        <input type="number" id="editIncomeAmount" class="form-control" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Date *</label>
+                        <input type="date" id="editIncomeDate" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Description</label>
+                        <textarea id="editIncomeDescription" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let categories = [];
+let allIncome = []; // Cache all income
+
+async function loadCategories() {
+    const response = await apiRequest(`${API_URL}/api/categories`);
+    if (!response) return;
+    const data = await response.json();
+    categories = data.filter(c => c.category_type === 'income');
+    const options = categories.map(c => `<option value="${c.id}">${c.category_name}</option>`).join('');
+    document.getElementById('incomeCategory').innerHTML = options;
+    document.getElementById('editIncomeCategory').innerHTML = options;
+    document.getElementById('filterCategory').innerHTML = '<option value="">All Categories</option>' + options;
+}
+
+async function loadIncome(refresh = false) {
+    // Only fetch from API if refresh is true or data not loaded
+    if (refresh || allIncome.length === 0) {
+        const response = await apiRequest(`${API_URL}/api/income/user`);
+        if (!response) return;
+        allIncome = await response.json();
+    }
+    
+    // Client-side filtering
+    const category = document.getElementById('filterCategory').value;
+    const startDate = document.getElementById('filterStartDate').value;
+    const endDate = document.getElementById('filterEndDate').value;
+    
+    let incomes = [...allIncome];
+    if (category) incomes = incomes.filter(i => i.category_id == category);
+    if (startDate) incomes = incomes.filter(i => i.date >= startDate);
+    if (endDate) incomes = incomes.filter(i => i.date <= endDate);
+    
+    const html = incomes.map(inc => {
+        const cat = categories.find(c => c.id === inc.category_id);
+        return `
+            <tr>
+                <td>${inc.date}</td>
+                <td>${cat ? cat.category_name : 'Unknown'}</td>
+                <td>${inc.description || '-'}</td>
+                <td>₹${inc.amount.toFixed(2)}</td>
+                <td>
+                    <button class="btn btn-sm btn-success me-1" onclick='editIncome(${JSON.stringify(inc).replace(/'/g, "&apos;")})'>
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteIncome(${inc.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    document.getElementById('incomeTable').innerHTML = html || '<tr><td colspan="5" class="text-center">No income found</td></tr>';
+}
+
+function clearIncomeFilters() {
+    document.getElementById('filterCategory').value = '';
+    document.getElementById('filterStartDate').value = '';
+    document.getElementById('filterStartDate').removeAttribute('max');
+    document.getElementById('filterEndDate').value = '';
+    document.getElementById('filterEndDate').removeAttribute('min');
+    loadIncome();
+}
+
+function updateEndDateMin() {
+    const startDate = document.getElementById('filterStartDate').value;
+    const endDateInput = document.getElementById('filterEndDate');
+    if (startDate) {
+        endDateInput.min = startDate;
+        // If end date is already set and less than start date, clear it
+        if (endDateInput.value && endDateInput.value < startDate) {
+            endDateInput.value = '';
+        }
+    } else {
+        endDateInput.removeAttribute('min');
+    }
+}
+
+function updateStartDateMax() {
+    const endDate = document.getElementById('filterEndDate').value;
+    const startDateInput = document.getElementById('filterStartDate');
+    if (endDate) {
+        startDateInput.max = endDate;
+        // If start date is already set and greater than end date, clear it
+        if (startDateInput.value && startDateInput.value > endDate) {
+            startDateInput.value = '';
+        }
+    } else {
+        startDateInput.removeAttribute('max');
+    }
+}
+
+document.getElementById('addIncomeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const income = {
+        category_id: parseInt(document.getElementById('incomeCategory').value),
+        amount: parseFloat(document.getElementById('incomeAmount').value),
+        date: document.getElementById('incomeDate').value,
+        description: document.getElementById('incomeDescription').value
+    };
+    
+    const response = await apiRequest(`${API_URL}/api/income`, {
+        method: 'POST',
+        body: JSON.stringify(income)
+    });
+    
+    if (response && response.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('addIncomeModal')).hide();
+        showToast('Income added successfully!', 'success');
+        document.getElementById('addIncomeForm').reset();
+        loadIncome(true); // Refresh data from API
+    } else {
+        showToast('Failed to add income', 'danger');
+    }
+});
+
+function editIncome(income) {
+    document.getElementById('editIncomeId').value = income.id;
+    document.getElementById('editIncomeCategory').value = income.category_id;
+    document.getElementById('editIncomeAmount').value = income.amount;
+    document.getElementById('editIncomeDate').value = income.date;
+    document.getElementById('editIncomeDescription').value = income.description || '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('editIncomeModal'));
+    modal.show();
+}
+
+document.getElementById('editIncomeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const income = {
+        id: parseInt(document.getElementById('editIncomeId').value),
+        category_id: parseInt(document.getElementById('editIncomeCategory').value),
+        amount: parseFloat(document.getElementById('editIncomeAmount').value),
+        date: document.getElementById('editIncomeDate').value,
+        description: document.getElementById('editIncomeDescription').value
+    };
+    
+    const response = await apiRequest(`${API_URL}/api/income/update`, {
+        method: 'PUT',
+        body: JSON.stringify(income)
+    });
+    
+    if (response && response.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('editIncomeModal')).hide();
+        showToast('Income updated successfully!', 'success');
+        loadIncome(true); // Refresh data from API
+    } else {
+        showToast('Failed to update income', 'danger');
+    }
+});
+
+async function deleteIncome(id) {
+    if (!confirm('Are you sure you want to delete this income?')) return;
+    const response = await apiRequest(`${API_URL}/api/income/delete/${id}`, { method: 'DELETE' });
+    if (response && response.ok) {
+        showToast('Income deleted successfully!', 'success');
+        loadIncome(true); // Refresh data from API
+    } else {
+        showToast('Failed to delete income', 'danger');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCategories().then(() => loadIncome());
+    document.getElementById('incomeDate').valueAsDate = new Date();
+});
+</script>
+{% endblock %}

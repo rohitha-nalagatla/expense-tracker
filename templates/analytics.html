@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-chart-line"></i> Analytics</h2>
+    
+    <!-- Monthly Trends -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Monthly Trends</h5>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge bg-light text-dark" id="trendYearDisplay"></span>
+                <input type="number" id="trendsYear" class="form-control form-control-sm" style="width: 90px;" min="2020" onchange="loadMonthlyTrends()">
+                <button class="btn btn-sm btn-light" onclick="setCurrentTrendsYear()">
+                    <i class="fas fa-calendar-day"></i> Current
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <canvas id="monthlyTrendsChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Category Charts Section -->
+    <div class="mb-3">
+        <h4>Category Analysis</h4>
+        <!-- Date Filters for Category Charts -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <label class="col-form-label fw-bold">Filter by:</label>
+                    </div>
+                    <div class="col-auto">
+                        <label class="col-form-label">Month:</label>
+                    </div>
+                    <div class="col-auto">
+                        <select id="analyticsMonth" class="form-select" onchange="loadCategoryCharts()">
+                            <option value="">All Time</option>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <label class="col-form-label">Year:</label>
+                    </div>
+                    <div class="col-auto">
+                        <input type="number" id="analyticsYear" class="form-control" min="2020" onchange="loadCategoryCharts()">
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-secondary" onclick="clearCategoryFilters()">
+                            <i class="fas fa-times"></i> Clear Filters
+                        </button>
+                    </div>
+                    <div class="col-auto">
+                        <button class="btn btn-primary" onclick="setCurrentMonthYear()">
+                            <i class="fas fa-calendar-day"></i> Current Month
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Expenses by Category -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Expenses by Category</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="expensesByCategoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Income by Category -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Income by Category</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="incomeByCategoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let monthlyTrendsChart, expensesByCategoryChart, incomeByCategoryChart;
+
+function setCurrentTrendsYear() {
+    const now = new Date();
+    document.getElementById('trendsYear').value = now.getFullYear();
+    loadMonthlyTrends();
+}
+
+function setCurrentMonthYear() {
+    const now = new Date();
+    document.getElementById('analyticsMonth').value = now.getMonth() + 1;
+    document.getElementById('analyticsYear').value = now.getFullYear();
+    loadCategoryCharts();
+}
+
+function clearCategoryFilters() {
+    document.getElementById('analyticsMonth').value = '';
+    document.getElementById('analyticsYear').value = '';
+    loadCategoryCharts();
+}
+
+function loadCategoryCharts() {
+    loadExpensesByCategory();
+    loadIncomeByCategory();
+}
+
+async function loadMonthlyTrends() {
+    const year = parseInt(document.getElementById('trendsYear').value);
+    document.getElementById('trendYearDisplay').textContent = year;
+    
+    const response = await apiRequest(`${API_URL}/api/analytics/monthly-trends?year=${year}`);
+    if (!response) return;
+    
+    const data = await response.json();
+    
+    const ctx = document.getElementById('monthlyTrendsChart').getContext('2d');
+    if (monthlyTrendsChart) monthlyTrendsChart.destroy();
+    
+    monthlyTrendsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.trends.map(t => t.month_name),
+            datasets: [
+                {
+                    label: 'Income',
+                    data: data.trends.map(t => t.income),
+                    backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Expenses',
+                    data: data.trends.map(t => t.expenses),
+                    backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Net',
+                    data: data.trends.map(t => t.net),
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    type: 'line'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '₹' + value.toFixed(0);
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ₹' + context.parsed.y.toFixed(2);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function loadExpensesByCategory() {
+    const month = document.getElementById('analyticsMonth').value;
+    const year = document.getElementById('analyticsYear').value;
+    
+    // Build URL with optional query params
+    let url = `${API_URL}/api/analytics/expenses-by-category`;
+    const params = [];
+    if (month) params.push(`month=${parseInt(month)}`);
+    if (year) params.push(`year=${parseInt(year)}`);
+    if (params.length > 0) url += '?' + params.join('&');
+    
+    console.log('Loading expenses by category:', url);
+    const response = await apiRequest(url);
+    if (!response) return;
+    
+    const data = await response.json();
+    
+    const ctx = document.getElementById('expensesByCategoryChart').getContext('2d');
+    if (expensesByCategoryChart) expensesByCategoryChart.destroy();
+    
+    if (data.data.length > 0) {
+        expensesByCategoryChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: data.data.map(d => d.category_name),
+                datasets: [{
+                    data: data.data.map(d => d.total_amount),
+                    backgroundColor: [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ₹' + value.toFixed(2) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+async function loadIncomeByCategory() {
+    const month = document.getElementById('analyticsMonth').value;
+    const year = document.getElementById('analyticsYear').value;
+    
+    // Build URL with optional query params
+    let url = `${API_URL}/api/analytics/income-by-category`;
+    const params = [];
+    if (month) params.push(`month=${parseInt(month)}`);
+    if (year) params.push(`year=${parseInt(year)}`);
+    if (params.length > 0) url += '?' + params.join('&');
+    
+    console.log('Loading income by category:', url);
+    const response = await apiRequest(url);
+    if (!response) return;
+    
+    const data = await response.json();
+    
+    const ctx = document.getElementById('incomeByCategoryChart').getContext('2d');
+    if (incomeByCategoryChart) incomeByCategoryChart.destroy();
+    
+    if (data.data.length > 0) {
+        incomeByCategoryChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: data.data.map(d => d.category_name),
+                datasets: [{
+                    data: data.data.map(d => d.total_amount),
+                    backgroundColor: [
+                        '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
+                        '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384', '#36A2EB'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ₹' + value.toFixed(2) + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set current year for trends
+    const now = new Date();
+    document.getElementById('trendsYear').value = now.getFullYear();
+    
+    // Initialize category filters (empty for all-time by default)
+    document.getElementById('analyticsMonth').value = '';
+    document.getElementById('analyticsYear').value = '';
+    
+    loadMonthlyTrends();
+    loadExpensesByCategory();
+    loadIncomeByCategory();
+});
+</script>
+{% endblock %}
